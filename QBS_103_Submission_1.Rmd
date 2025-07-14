@@ -1,0 +1,102 @@
+---
+title: "Final project 1"
+output: html_document
+date: "2025-07-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/QBS103-Final-Project")
+genedata <- read.csv(file = "/Users/kenz/Downloads/QBS103_GSE157103_genes.csv") #importing dataset
+colnames(genedata)[1] <- "Gene" #assigning column name to column 1
+metadata <- read.csv(file = "/Users/kenz/Downloads/QBS103_GSE157103_series_matrix-1.csv")
+print(genedata)
+print(metadata)
+getwd()
+```
+
+
+```{r setup, include=FALSE}
+#library("plyr")  
+library("dplyr")
+library("readr")
+library("tidyverse")
+library("ggplot2")
+```
+```{r}
+long_gene <- genedata %>%
+  pivot_longer(
+    cols = -Gene,       # all columns except 'Gene' pivoted
+    names_to = "participant_id", #naming column 2 according to the naming convention of my metadata in order to merge later
+    values_to = "gene_expression"
+  )
+print(long_gene)
+
+#linking the two datasets
+combined_data <- merge(long_gene, metadata, by = "participant_id")
+print(combined_data) 
+
+#using a pipe to filter and select the data i want for my gene of interest
+AARS1Data <- combined_data %>%
+  dplyr::filter(Gene == "AATF") %>%
+  dplyr::select(participant_id, 'gene_expression', age, sex, icu_status) %>%
+  dplyr::mutate(ICUStatus = ifelse(icu_status == 'yes',T,F)) 
+
+print(AARS1Data)
+```
+
+
+```{r}
+#creating histogram using ggplot. source: https://www.geeksforgeeks.org/r-language/histogram-in-r-using-ggplot2/
+ggplot(AARS1Data,aes(x = gene_expression)) +
+  geom_histogram(binwidth = 0.5, color = "black", fill= "plum") +
+  labs(x = "Gene Expression", y = "Frequency") +
+  ggtitle("Expression values of gene AARS1") +
+  #scale_x_continuous(breaks=seq(2, 30, by = 2) +
+  theme_minimal()
+```
+
+scatter plot
+```{r}
+colorPalette <- c('plum', 'mediumpurple2') #setting my colorpalette
+
+#plotting scatterplot using ggplot function and set parameters
+ggplot(AARS1Data, aes(x = age, y=gene_expression)) +
+    geom_point() +
+  scale_color_manual(values = colorPalette) +
+  labs(x= 'Age(years)', y='Gene expression', color = 'Measure' )+
+  theme_minimal()
+```
+Boxplot
+```{r}
+#boxplot specifications
+ggplot(AARS1Data, aes(x = sex, y = gene_expression, fill = icu_status)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = "Gene Expression by Categorical Covariates",
+         x = "Sex",
+         y = "Gene Expression",
+         fill = "ICU Status")
+```
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
