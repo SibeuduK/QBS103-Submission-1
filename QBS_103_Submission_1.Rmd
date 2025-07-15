@@ -1,22 +1,23 @@
 ---
 title: "Final project 1"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 date: "2025-07-12"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("~/QBS103-Final-Project")
-genedata <- read.csv(file = "/Users/kenz/Downloads/QBS103_GSE157103_genes.csv") #importing dataset
+setwd("/Users/kenz/Downloads")
+genedata <- read.csv(file = "QBS103_GSE157103_genes.csv") #importing dataset
 colnames(genedata)[1] <- "Gene" #assigning column name to column 1
-metadata <- read.csv(file = "/Users/kenz/Downloads/QBS103_GSE157103_series_matrix-1.csv")
-print(genedata)
-print(metadata)
-getwd()
+metadata <- read.csv(file = "QBS103_GSE157103_series_matrix-1.csv")
+#print(genedata)
+#print(metadata)
 ```
 
 
-```{r setup, include=FALSE}
+```{r setu, include=FALSE}
 #library("plyr")  
 library("dplyr")
 library("readr")
@@ -27,56 +28,73 @@ library("ggplot2")
 long_gene <- genedata %>%
   pivot_longer(
     cols = -Gene,       # all columns except 'Gene' pivoted
-    names_to = "participant_id", #naming column 2 according to the naming convention of my metadata in order to merge later
+    names_to = "participant_id", #naming column 2 according to the naming convention of my metadata in order to merge
+#the two later
     values_to = "gene_expression"
   )
-print(long_gene)
+#print(long_gene)
 
 #linking the two datasets
 combined_data <- merge(long_gene, metadata, by = "participant_id")
-print(combined_data) 
+#print(combined_data) 
 
-#using a pipe to filter and select the data i want for my gene of interest
-AARS1Data <- combined_data %>%
+#using a pipe to filter and select the data i want for my gene of interest AATF
+AATFData <- combined_data %>%
   dplyr::filter(Gene == "AATF") %>%
   dplyr::select(participant_id, 'gene_expression', age, sex, icu_status) %>%
-  dplyr::mutate(ICUStatus = ifelse(icu_status == 'yes',T,F)) 
+  dplyr::mutate(ICUStatus = ifelse(trimws(tolower(icu_status)) == 'yes', TRUE, FALSE))
 
-print(AARS1Data)
+#print(AATFData)
 ```
 
 
 ```{r}
 #creating histogram using ggplot. source: https://www.geeksforgeeks.org/r-language/histogram-in-r-using-ggplot2/
-ggplot(AARS1Data,aes(x = gene_expression)) +
-  geom_histogram(binwidth = 0.5, color = "black", fill= "plum") +
+ggplot(AATFData,aes(x = gene_expression)) +
+  geom_histogram(binwidth = 2, color = "black", fill= "plum") +
   labs(x = "Gene Expression", y = "Frequency") +
-  ggtitle("Expression values of gene AARS1") +
+  ggtitle("Expression values of gene AATF") +
   #scale_x_continuous(breaks=seq(2, 30, by = 2) +
-  theme_minimal()
+  theme_classic()
 ```
 
 scatter plot
 ```{r}
-colorPalette <- c('plum', 'mediumpurple2') #setting my colorpalette
+#colorPalette <- c('plum', 'mediumpurple2') #setting my colorpalette
+AATFData$age <- as.numeric(AATFData$age) #converting my column age to numeric values to exclude NA values
+#and to ensure my interval breaks take effect properly. used chatgpt and https://vrcacademy.com/tutorials/character-to-integer-r-dataframe/ to figure this out. 
 
 #plotting scatterplot using ggplot function and set parameters
-ggplot(AARS1Data, aes(x = age, y=gene_expression)) +
-    geom_point() +
-  scale_color_manual(values = colorPalette) +
-  labs(x= 'Age(years)', y='Gene expression', color = 'Measure' )+
-  theme_minimal()
+ggplot(AATFData, aes(x = age, y=gene_expression,)) +
+    geom_point(color = 'mediumpurple2') +
+  #when i first plotted without this function below, the age values were all over the place
+  #this allows for better clarity and readability of the ages in intervals
+  scale_x_continuous(breaks=seq(0, 100, by = 10)) + 
+  labs(title = "AATF Gene Expression and Continuous Covariate Age", 
+       x= 'Age(years)',
+       y='Gene expression')+ #setting labels 
+  theme_linedraw()
+  
+
 ```
 Boxplot
 ```{r}
-#boxplot specifications
-ggplot(AARS1Data, aes(x = sex, y = gene_expression, fill = icu_status)) +
-    geom_boxplot() +
-    theme_minimal() +
+#boxplot specifications plotting icu status, sex and gene expression
+
+AATFData <- AATFData %>%
+ mutate(sex_standard = str_trim(tolower(sex))) #standardized the format of sex column
+AATFData_sex <- AATFData %>%
+  filter(!sex_standard %in% c("unknown", "", "na", "n/a") & !is.na(sex_standard)) 
+#chat gpt was used here to understand what mistake i was making when trying to filter out the unwanted sex characters
+
+ggplot(AATFData_sex, aes(x = sex_standard, y = gene_expression, fill = icu_status)) +
+    geom_boxplot()+
+    theme_classic() +
     labs(title = "Gene Expression by Categorical Covariates",
          x = "Sex",
          y = "Gene Expression",
          fill = "ICU Status")
+
 ```
 
 
@@ -88,7 +106,7 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r cars}
-summary(cars)
+#summary(cars)
 ```
 
 ## Including Plots
@@ -96,7 +114,7 @@ summary(cars)
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
-plot(pressure)
+#plot(pressure)
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
