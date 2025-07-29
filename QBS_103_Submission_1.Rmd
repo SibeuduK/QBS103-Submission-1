@@ -36,7 +36,7 @@ long_gene <- genedata %>%
 
 #linking the two datasets
 combined_data <- merge(long_gene, metadata, by = "participant_id")
-#print(combined_data) 
+tail(combined_data) 
 
 #using a pipe to filter and select the data i want for my gene of interest AATF
 AATFData <- combined_data %>%
@@ -97,11 +97,62 @@ ggplot(AATFData_sex, aes(x = sex_standard, y = gene_expression, fill = icu_statu
 
 ```
 
+```{r}
+
+my_function <- function(data, gene_list, age, sex, icu_status {
+  
+  for (gene_name in gene_list) {
+    
+    # Filter for gene of interest
+    gene_data <- data %>%
+      filter(Gene == gene_name) %>%
+      select(participant_id, gene_expression, age, sex, icu_status) %>%
+      # Ensure continuous covariate is numeric
+      mutate(across(all_of(age), as.numeric)) %>%  
+      # Cleaning categorical variables
+      mutate(across(all_of(c(sex, icu_status), ~ str_trim(tolower(.))))) %>%
+      mutate(across(all_of(!sex_standard %in% c("unknown", "", "na", "n/a") & !is.na(sex_standard)) 
+    
+    # Histogram
+    histogram <- ggplot(gene_data, aes(x = gene_expression)) +
+      geom_histogram(fill = "plum", color = "black") +
+      labs(title = paste("Histogram of", gene_name, "Expression"),
+           x = "Gene Expression", y = "Frequency") +
+      theme_minimal()
+    
+    # Scatterplot
+    scatterplot <- ggplot(gene_data, aes_string(x = age, y = "gene_expression")) +
+      geom_point(color = "darkorchid") +
+      scale_x_continuous(breaks = seq(0, 100, by = 10)) +
+      labs(title = paste(gene_name, "vs", age),
+           x = age, y = "Gene Expression") +
+      theme_linedraw()
+    
+    # Boxplot 
+    boxplot <- ggplot(gene_data, aes_string(x = cat_cov1, y = "gene_expression", fill = cat_cov2)) +
+      geom_boxplot() + 
+      scale_fill_manual(values=c("hotpink3","lightskyblue")) +
+      labs(title = paste("Expression of", gene_name, "by", sex),
+           x = sex, y = "Gene Expression", fill = icu_status) +
+      theme_classic()
+
+    plot(histogram)
+    plot(scatterplot)
+    plot(boxplot)
+  }
+}
+
+```
 
 
-## R Markdown
+```{r}
+my_function(data = combined_data, 
+                     gene_list = c("ABHD15", "AATF"), 
+                     cont_cov = "age", 
+                     cat_cov1 = "sex", 
+                     cat_cov2 = "icu_status")
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
