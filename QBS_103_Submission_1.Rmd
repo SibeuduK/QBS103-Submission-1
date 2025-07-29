@@ -99,46 +99,47 @@ ggplot(AATFData_sex, aes(x = sex_standard, y = gene_expression, fill = icu_statu
 
 ```{r}
 
-my_function <- function(data, gene_list, age, sex, icu_status {
+my_function <- function(combined_data, gene_list) {
   
   for (gene_name in gene_list) {
     
     # Filter for gene of interest
-    gene_data <- data %>%
+    gene_data <- combined_data %>%
       filter(Gene == gene_name) %>%
       select(participant_id, gene_expression, age, sex, icu_status) %>%
-      # Ensure continuous covariate is numeric
-      mutate(across(all_of(age), as.numeric)) %>%  
+      # Ensure continuous covariate age is numeric
+      mutate(age = as.numeric(age)) %>%  
       # Cleaning categorical variables
-      mutate(across(all_of(c(sex, icu_status), ~ str_trim(tolower(.))))) %>%
-      mutate(across(all_of(!sex_standard %in% c("unknown", "", "na", "n/a") & !is.na(sex_standard)) 
+      mutate(across(c(sex, icu_status), ~ str_trim(tolower(.)))) %>%
+      #filtering to remove unwanted values for sex
+      filter(!sex %in% c("unknown", "", "na", "n/a") & !is.na(sex))  
     
     # Histogram
     histogram <- ggplot(gene_data, aes(x = gene_expression)) +
-      geom_histogram(fill = "plum", color = "black") +
+      geom_histogram(fill = "plum", color = "black", bins=20) +
       labs(title = paste("Histogram of", gene_name, "Expression"),
            x = "Gene Expression", y = "Frequency") +
       theme_minimal()
     
     # Scatterplot
-    scatterplot <- ggplot(gene_data, aes_string(x = age, y = "gene_expression")) +
+    scatterplot <- ggplot(gene_data, aes(x = age, y = gene_expression)) +
       geom_point(color = "darkorchid") +
       scale_x_continuous(breaks = seq(0, 100, by = 10)) +
-      labs(title = paste(gene_name, "vs", age),
-           x = age, y = "Gene Expression") +
+      labs(title = paste(gene_name, "vs Age"),
+           x = "Age", y = "Gene Expression") +
       theme_linedraw()
     
     # Boxplot 
-    boxplot <- ggplot(gene_data, aes_string(x = cat_cov1, y = "gene_expression", fill = cat_cov2)) +
+    boxplot <- ggplot(gene_data, aes(x = sex, y = gene_expression, fill = icu_status)) +
       geom_boxplot() + 
       scale_fill_manual(values=c("hotpink3","lightskyblue")) +
-      labs(title = paste("Expression of", gene_name, "by", sex),
-           x = sex, y = "Gene Expression", fill = icu_status) +
+      labs(title = paste("Expression of", gene_name, "by sex"),
+           x = "Sex", y = "Gene Expression", fill = 'ICU_status') +
       theme_classic()
 
-    plot(histogram)
-    plot(scatterplot)
-    plot(boxplot)
+    print(histogram)
+    print(scatterplot)
+    print(boxplot)
   }
 }
 
@@ -146,26 +147,5 @@ my_function <- function(data, gene_list, age, sex, icu_status {
 
 
 ```{r}
-my_function(data = combined_data, 
-                     gene_list = c("ABHD15", "AATF"), 
-                     cont_cov = "age", 
-                     cat_cov1 = "sex", 
-                     cat_cov2 = "icu_status")
-
+my_function(combined_data, gene_list = c("ABHD15","ABI1","AATF"))
 ```
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-#summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-#plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
