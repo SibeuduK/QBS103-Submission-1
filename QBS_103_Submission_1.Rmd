@@ -18,12 +18,16 @@ metadata <- read.csv(file = "QBS103_GSE157103_series_matrix-1.csv")
 
 
 ```{r setu, include=FALSE}
-#library("plyr")  
 library("dplyr")
 library("readr")
 library("tidyverse")
 library("ggplot2")
+library("kableExtra")
+library("pheatmap")
+library("stringr")
 ```
+
+
 ```{r}
 long_gene <- genedata %>%
   pivot_longer(
@@ -98,8 +102,10 @@ ggplot(AATFData_sex, aes(x = sex_standard, y = gene_expression, fill = icu_statu
 ```
 
 ```{r}
-
-my_function <- function(data, gene_list, continuous_cov, categorical_cov1, categorical_cov2) {
+my_function <- function(data, gene_list, continuous_cov, categorical_cov1, categorical_cov2,
+                        cont_label = continuous_cov,
+                        cat1_label = categorical_cov1,
+                        cat2_label = categorical_cov2) {
   
   for (gene_name in gene_list) {
     
@@ -134,16 +140,19 @@ my_function <- function(data, gene_list, continuous_cov, categorical_cov1, categ
       geom_point(color = "darkorchid") +
       scale_x_continuous(breaks = seq(0, 100, by = 10)) +
       labs(title = paste(gene_name, "vs", continuous_cov),
-           x = continuous_cov, y = "Gene Expression") +
+           x = cont_label, y = "Gene Expression") +
       theme_linedraw()
     
-    # Boxplot 
+    # Boxplot
     boxplot <- ggplot(gene_data, aes(x = !!sym(categorical_cov1), y = gene_expression, 
                                      fill = !!sym(categorical_cov2))) +
+      
       geom_boxplot() + 
-      scale_fill_manual(values=c("hotpink3","lightskyblue")) +
+      scale_fill_manual(values=c("hotpink3","lightskyblue"),
+                       labels = function(x) str_to_title(x)) +
       labs(title = paste("Expression of", gene_name, "by", categorical_cov1),
-           x = categorical_cov1, y = "Gene Expression", fill = categorical_cov2) +
+           x = cat1_label, y = "Gene Expression", fill = cat2_label) +
+      scale_x_discrete(labels = function(x) str_to_title(x)) +  # capitalizes x-axis labels
       theme_classic()
 
     print(histogram)
@@ -161,5 +170,137 @@ my_function(data = combined_data,
             gene_list = c("ABHD15","ABI1","AATF"),
             continuous_cov = "age",
             categorical_cov1 = "sex", 
-            categorical_cov2 = "icu_status")
+            categorical_cov2 = "icu_status",
+            cont_label = "Age",
+            cat1_label = "Sex",
+            cat2_label = "ICU Status")
 ```
+
+```{r}
+#cleaning up variables
+#chatgpt was used as an aide to create the summary stats table 
+combined_dataB <- combined_data %>%
+  mutate(
+    age = as.numeric(age),
+    crp = as.numeric(na_if(crp.mg.l., "unknown")),#ensures values are numeric and changes unkowns to na
+    ferritin = as.numeric(na_if(ferritin.ng.ml., "unknown")),
+    sex = tolower(trimws(sex)),
+    icu_status = tolower(trimws(icu_status)),
+    mechanical_ventilation = tolower(trimws(mechanical_ventilation))
+  ) %>%
+  drop_na(crp, ferritin, sex) #gets rid of my unknowns
+
+#summary function for my continous variables to calculate mean and sd
+cont_summ <- function(x) {
+  paste0(round(mean(x, na.rm = TRUE), 1), " (", round(sd(x, na.rm = TRUE), 1), ")")
+}
+
+#summary function for categorial vars to count n and %
+cat_summ <- function(x) {
+  tab <- table(x, useNA = "no")
+  prop <- prop.table(tab) * 100
+  paste0(names(tab), ": ", tab, " (", round(prop, 1), "%)", collapse = "; ")
+}
+
+#creating my summary table stratified by patient sex
+summary_table <- combined_dataB %>%
+  group_by(sex) %>%
+  summarise(
+    Age = cont_summ(age),
+    CRP = cont_summ(crp),
+    Ferritin = cont_summ(ferritin),
+    "ICU Status" = cat_summ(icu_status),
+    "Mechanical Ventilation" = cat_summ(mechanical_ventilation) ,
+    ) %>%
+  rename(Sex = sex)
+
+# Format into latex table
+kable(summary_table, format = "latex", booktabs = TRUE,
+      caption = "Summary Statistics Stratified by Sex") %>%
+  kable_classic() %>%
+  kable_styling(latex_options = c("hold_position", "scale_down")) #%>%
+  #save_kable("summary_table.tex")
+print(summary_table)
+```
+
+Plots for Gene of Interest
+```{r}
+#using previously defined function to generate final publication ready plots 
+my_function(data = combined_data, 
+            gene_list = c("AATF"),
+            continuous_cov = "age",
+            categorical_cov1 = "sex", 
+            categorical_cov2 = "icu_status",
+            cont_label = "Age",
+            cat1_label = "Sex",
+            cat2_label = "ICU Status")
+```
+
+Heatmap
+```{r}
+#chatgpt was used to assist in the creation of my heatmap
+#Calculate variance of each gene
+variance <- apply(genedata[,-1], 1, var)   
+
+#Orders by decreasing variance
+genedata_ordered <- genedata[order(variance, decreasing = TRUE), ]
+
+# Select top 10 variable genes
+top_genes <- genedata_ordered[1:10, ]
+
+# Format data for pheatmap
+# Remove "Gene" column so rows are numeric
+rownames(top_genes) <- top_genes$Gene
+top_genes_matrix <- as.matrix(top_genes[,-1])
+
+
+# Prepare metadata annotations
+rownames(metadata) <- metadata$participant_id
+metadata_for_heatmap <- metadata %>%
+  filter(tolower(trimws(sex)) != "unknown") %>%
+  select("Sex" = sex, "ICU Status" = icu_status) %>%
+  mutate(Sex = str_to_title(Sex),        
+    `ICU Status` = str_to_title(`ICU Status`))
+  
+#Generate heatmap
+heatmap <- pheatmap(top_genes_matrix,
+         clustering_distance_rows = "euclidean", 
+         clustering_distance_cols = "euclidean",
+         annotation_col = metadata_for_heatmap,
+         main = "Gene Expression Heatmap Stratified by Sex and ICU Status",
+         scale = "row",
+         fontsize_col = 3) 
+print(heatmap)
+```
+
+Density Plot 
+```{r}
+#Resources used when selecting new plot type to use
+#https://www.sthda.com/english/wiki/ggplot2-density-plot-quick-start-guide-r-software-and-data-visualization
+#chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://web.stanford.edu/class/stats32/assets/lecture-3/ggplot2-cheatsheet.pdf
+densityplot <- ggplot(AATFData %>% 
+           mutate(icu_status_clean = str_to_title((icu_status))),
+         aes(x = age, fill = icu_status_clean)) +
+          geom_density(alpha = 0.5) +        # semi-transparent to see data overlaps
+          labs(title = "Age Density by ICU Status for Gene AATF", 
+         x = "Age", y = "Density",
+         fill= 'ICU Status') +
+  geom_vline(xintercept = mean(AATFData$age, na.rm = TRUE),
+    color = "orchid", linetype = "dashed", linewidth = 1
+  ) +
+  theme_classic()
+densityplot
+```
+
+```{r}
+#ggsave("densityplot.png", plot = densityplot, width=6, height=4)
+#ggsave("heatmap.png", plot =heatmap, width=8, height=6)
+#citation("dplyr")
+#citation("readr")
+#citation("tidyverse")
+#citation("ggplot2")
+#citation("kableExtra")
+#citation("pheatmap")
+#citation("stringr")
+```
+
